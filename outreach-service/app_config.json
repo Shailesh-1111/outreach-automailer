@@ -1,0 +1,12 @@
+{
+  "roles": [
+    "Software Development Engineer",
+    "Full Stack Developer (Backend-Focused)",
+    "Backend Developer"
+  ],
+  "templates": [
+    { "id": "formal", "name": "Formal (Standard)" },
+    { "id": "casual", "name": "Casual & Direct" },
+    { "id": "short", "name": "Short & Punchy" }
+  ]
+}
