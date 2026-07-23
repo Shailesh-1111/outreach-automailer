@@ -1,0 +1,25 @@
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Node
+node_modules/
+dist/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# App Data & Sensitive Info
+outreach-service/profile.json
+outreach-service/processing_queue/*
+!outreach-service/processing_queue/.gitkeep
+outreach-service/history/*
+!outreach-service/history/.gitkeep
+outreach-service/logs/*
+!outreach-service/logs/.gitkeep
