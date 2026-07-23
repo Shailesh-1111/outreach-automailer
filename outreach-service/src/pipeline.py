@@ -4,9 +4,19 @@ import os
 import glob
 import time
 import random
+import logging
 from src.config import PROCESSING_QUEUE_DIR, PROCESSED_FILE
 from src.template import generate_email_html
 from src.sender import send_email
+
+# Setup Email Logger
+os.makedirs("logs", exist_ok=True)
+email_logger = logging.getLogger("email_pipeline")
+email_logger.setLevel(logging.INFO)
+fh = logging.FileHandler("logs/email.log")
+fh.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+if not email_logger.handlers:
+    email_logger.addHandler(fh)
 
 def get_latest_contacts_file():
     if not os.path.exists(PROCESSING_QUEUE_DIR):
@@ -106,7 +116,8 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
         try:
             # Skip if already marked sent LOCALLY
             if str(row.get("is_sent", "")).lower() == "true":
-                print(f"⏩ Skipping {name} ({email_to}) — already sent locally.")
+                email_logger.info(f"[SKIPPED LOCAL] {email_to}")
+                print(f"⏩ [Skipped] {email_to}")
                 row["verdict_group"] = "Skipped"
                 row["verdict"] = "Already dispatched successfully in a previous run."
                 processed_records.append(row)
@@ -114,7 +125,8 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
                 
             # Skip if already marked sent GLOBALLY
             if email_to in sent_emails_globally:
-                print(f"🌍 Skipping {name} ({email_to}) — already sent in global history.")
+                email_logger.info(f"[SKIPPED GLOBAL] {email_to}")
+                print(f"🌍 [Skipped] {email_to}")
                 row["is_sent"] = True
                 row["verdict_group"] = "Skipped (Global)"
                 row["verdict"] = "Found in global history. Prevented duplicate email."
@@ -125,7 +137,6 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
             email_body = generate_email_html(name, company, role=role, template_type=template_type, sender_name=sender_name, sender_exp=sender_exp, sender_email=sender_email)
             subject = f"{sender_name} | Exploring {role} Opportunities at {company}"
             
-            print(f"⏳ Sending email to {name} at {company} ({email_to})...")
             success, v_group, v_msg = send_email(email_to, subject, email_body)
     
             row["is_sent"] = success
@@ -134,12 +145,14 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
     
             processed_records.append(row)
             
-            # Anti-Spam Throttle: Prevent SMTP rate limits by sleeping after a successful send
             if success:
+                email_logger.info(f"[SUCCESS] {email_to}")
+                print(f"✅ [Sent] {email_to}")
                 delay = random.uniform(2, 5)
-                print(f"⏱️ Anti-Spam Throttle: Pausing for {delay:.1f} seconds...")
                 time.sleep(delay)
             else:
+                email_logger.error(f"[{v_group.upper()}] {email_to} - {v_msg}")
+                print(f"❌ [{v_group}] {email_to}")
                 # If a critical error happens, halt the entire job immediately
                 if v_group in ["Env Error", "Auth Error", "System Error"]:
                     print(f"🛑 Critical Error ({v_group}): Aborting remaining pipeline to prevent cascading failures.")

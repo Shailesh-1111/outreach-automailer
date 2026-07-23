@@ -223,4 +223,10 @@ if os.path.exists(ui_path):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
+    import logging
+    
+    os.makedirs("logs", exist_ok=True)
+    logging.basicConfig(filename="logs/server.log", level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    
+    # Run uvicorn with access_log=False to prevent terminal spam
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True, access_log=False)
