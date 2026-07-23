@@ -1,17 +1,12 @@
 import os
 import glob
 import json
-import logging
 import pandas as pd
 from datetime import datetime
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-
-# Setup global server logger (runs in worker processes too)
-os.makedirs("logs", exist_ok=True)
-logging.basicConfig(filename="logs/server.log", level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 from src.config import PROCESSED_FILE, PROCESSING_QUEUE_DIR, SENDER_EMAIL
 from src.pipeline import run_outreach, get_latest_contacts_file

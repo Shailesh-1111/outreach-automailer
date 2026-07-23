@@ -50,6 +50,8 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
         df["verdict_group"] = ""
     if "is_sent" not in df.columns:
         df["is_sent"] = ""
+        
+    df.fillna('', inplace=True)
 
     # LOAD GLOBAL HISTORY TO PREVENT DUPLICATES
     global_history_df = None
@@ -106,8 +108,8 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
                 continue
                 
         elif mode == 'unprocessed':
-            # Skip if it has ANY group (it was processed in some way)
-            if v_group_str != '' and v_group_str != 'pending' and v_str != '' and v_str != 'pending':
+            # Skip if it has ANY group or ANY verdict (meaning it was processed)
+            if v_group_str not in ['', 'pending', 'nan'] or v_str not in ['', 'pending', 'nan']:
                 continue
                 
         elif mode != 'all':
@@ -147,6 +149,13 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
             row["verdict"] = v_msg
     
             processed_records.append(row)
+            
+            # Save progress live so the UI can update counts
+            try:
+                current_df = pd.DataFrame(processed_records + df.iloc[idx+1:].to_dict('records'))
+                current_df.to_csv(target_file, index=False)
+            except Exception:
+                pass
             
             # Anti-Spam Throttle: Prevent SMTP rate limits by sleeping after a successful send
             if success:

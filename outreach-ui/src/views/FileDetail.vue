@@ -15,10 +15,10 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button @click="openConfigModal('unprocessed')" :disabled="isRunning" class="primary-btn">
-            {{ isRunning ? 'Running...' : '▶ Process Unprocessed' }}
+            {{ isRunning ? 'Running...' : `▶ Process Unprocessed (${unprocessedCount})` }}
           </button>
           <button v-for="group in errorGroups" :key="group" @click="openConfigModal(group.toLowerCase())" :disabled="isRunning" class="secondary-btn">
-            ↻ Process {{ group }}
+            ↻ Process {{ group }} ({{ getGroupCount(group) }})
           </button>
         </div>
         
@@ -160,6 +160,21 @@ const errorGroups = computed(() => {
   return Array.from(groups)
 })
 
+const unprocessedCount = computed(() => {
+  return selectedFileContent.value.filter(row => {
+    const vg = String(row.verdict_group || '').toLowerCase()
+    const v = String(row.verdict || '').toLowerCase()
+    return (vg === '' || vg === 'pending' || vg === 'nan') && (v === '' || v === 'pending' || v === 'nan')
+  }).length
+})
+
+const getGroupCount = (groupName) => {
+  return selectedFileContent.value.filter(row => {
+    const vg = row.verdict_group || ''
+    return vg === groupName
+  }).length
+}
+
 const filteredContent = computed(() => {
   if (statusFilter.value === 'All') return selectedFileContent.value
   
@@ -216,6 +231,18 @@ const loadFileContent = async () => {
   }
 }
 
+const loadFileContentQuietly = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/api/files/${props.filename}`)
+    const json = await res.json()
+    if (json.status !== "not_found" && json.status !== "error") {
+      selectedFileContent.value = json.data || []
+    }
+  } catch (e) {
+    // Ignore errors for background fetch
+  }
+}
+
 const checkStatus = async () => {
   try {
     const res = await fetch(`${API_BASE}/api/status/${props.filename}`)
@@ -225,6 +252,10 @@ const checkStatus = async () => {
       loadFileContent()
     }
     isRunning.value = data.is_running
+    
+    if (isRunning.value) {
+      loadFileContentQuietly()
+    }
   } catch (e) {
     console.error("Status check failed", e)
   }
