@@ -119,11 +119,13 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
 
         try:
             # Skip if already marked sent LOCALLY
-            if str(row.get("is_sent", "")).lower() == "true":
+            is_sent = str(row.get("is_sent", "")).lower() == "true"
+            is_drafted = str(row.get("is_drafted", "")).lower() == "true"
+            if is_sent or is_drafted:
                 email_logger.info(f"[SKIPPED LOCAL] {email_to}")
-                print(f"⏩ Skipping {name} ({email_to}) — already sent locally.")
+                print(f"⏩ Skipping {name} ({email_to}) — already sent or drafted locally.")
                 row["verdict_group"] = "Skipped"
-                row["verdict"] = "Already dispatched successfully in a previous run."
+                row["verdict"] = "Already dispatched or manually drafted."
                 processed_records.append(row)
                 continue
                 
@@ -139,7 +141,7 @@ def run_outreach(target_file=None, mode='all', role="SDE", template_type="formal
     
             # Generate and send email
             email_body = generate_email_html(name, company, role=role, template_type=template_type, sender_name=sender_name, sender_exp=sender_exp, sender_email=sender_email)
-            subject = f"{sender_name} | Exploring {role} Opportunities at {company}"
+            subject = f"{sender_name} | Application for {role} Role (IIT BHU , {sender_exp})"
             
             print(f"⏳ Sending email to {name} at {company} ({email_to})...")
             success, v_group, v_msg = send_email(email_to, subject, email_body)

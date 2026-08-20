@@ -23,10 +23,11 @@
           {{ isDark ? '☀️Light' : '🌙Dark' }}
         </button>
         <!-- Only show main navigation if we are NOT on a file detail page -->
-        <nav class="header-nav" v-if="$route.path === '/' || $route.path === '/history' || $route.path === '/logs'">
+        <nav class="header-nav" v-if="$route.path === '/' || $route.path === '/history' || $route.path === '/logs' || $route.path === '/drafts'">
           <router-link to="/" class="nav-btn" exact-active-class="active">Processing Queue</router-link>
           <router-link to="/history" class="nav-btn" exact-active-class="active">Processed History</router-link>
           <router-link to="/logs" class="nav-btn" exact-active-class="active">System Logs</router-link>
+          <router-link to="/drafts" class="nav-btn" exact-active-class="active">Make Email Drafts</router-link>
         </nav>
       </div>
     </header>

@@ -20,6 +20,9 @@
           <button v-for="group in errorGroups" :key="group" @click="openConfigModal(group.toLowerCase())" :disabled="isRunning" class="secondary-btn">
             ↻ Process {{ group }} ({{ getGroupCount(group) }})
           </button>
+          <button @click="showDraftModal = true" class="secondary-btn">
+            📄 Export Drafts
+          </button>
         </div>
         
         <div class="filter-group">
@@ -117,6 +120,32 @@
         </div>
       </div>
     </div>
+    <!-- Drafts Modal -->
+    <div v-if="showDraftModal" class="modal-overlay" @click.self="showDraftModal = false">
+      <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+        <h3>Generate Email Drafts</h3>
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">File: {{ filename }}</p>
+
+        <div class="config-section">
+          <h4>Select Template</h4>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+            <label v-for="(t, idx) in draftTemplates" :key="idx" style="display: flex; gap: 10px; align-items: flex-start; cursor: pointer;">
+              <input type="radio" v-model="selectedDraftTemplate" :value="idx" name="draft_template" style="margin-top: 4px;" />
+              <div style="flex: 1; padding: 10px; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 6px;">
+                <div style="font-weight: 500; margin-bottom: 4px;">Template {{ idx === 6 ? 'Random' : idx + 1 }}</div>
+                <div style="font-size: 12px; color: var(--text-muted); white-space: pre-wrap;" v-if="idx < 6">{{ t.substring(0, 100) }}...</div>
+                <div style="font-size: 12px; color: var(--text-muted);" v-else>Randomly assigns one of the 6 templates to each recipient.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 20px;">
+          <button @click="showDraftModal = false" class="secondary-btn">Cancel</button>
+          <button @click="generateDrafts" class="primary-btn">📥 Download Drafts</button>
+        </div>
+      </div>
+    </div>
   </main>
 </template>
 
@@ -145,6 +174,94 @@ const pendingMode = ref('unprocessed')
 const selectedRole = ref('')
 const selectedTemplate = ref('')
 const previewHtml = ref('Loading preview...')
+
+// Drafts State
+const showDraftModal = ref(false)
+const selectedDraftTemplate = ref(0)
+const draftTemplates = [
+  `Hi {first_name},\n\nI’m Shailesh, an IIT BHU’24 grad and SDE with 2+ years of experience in scalable systems, full-stack, and AI/LLM tools (currently at Eduvanz Financing).\n\nI'm exploring SDE opportunities at your organization and would love to connect. I’ve attached my resume for your reference. \n\nBest,\nShailesh Yadav\n+917355603902`,
+  `Hi {first_name},\n\nI am an SDE with 2+ years of experience building scalable, real-time, and AI/LLM-powered systems (Java, Python, React) at Eduvanz Financing. \n\nAs an IIT BHU’24 graduate, I admire the work happening at your organization and am currently looking for new SDE roles. I’ve attached my resume—would love to chat if there's a fit!\n\nBest regards,\nShailesh Yadav\n+917355603902`,
+  `Hi {first_name},\n\nI’m reaching out to express my interest in SDE roles at your organization. I bring 2+ years of full-stack and AI development experience from Eduvanz Financing, backed by a degree from IIT BHU ('24).\n\nMy stack includes Java, Python, React, and VectorDBs. Please find my resume attached. Looking forward to connecting!\n\nThanks,\nShailesh Yadav\n+917355603902`,
+  `Hi {first_name},\n\nI’m an SDE (IIT BHU’24) specializing in Java, Python, React, and LLM implementations. With 2+ years of hands-on experience at Eduvanz Financing, I'm now exploring open software engineering opportunities at your organization.\n\nI’ve attached my resume outlining my recent work with scalable applications. Let me know if you have any openings that align!\n\nBest,\nShailesh Yadav\n+917355603902`,
+  `Hi {first_name},\n\nHope you're having a great week! \n\nI’m Shailesh, an IIT BHU'24 alum with 2+ years of SDE experience building scalable full-stack and AI-driven solutions. I’d love to bring my expertise to the engineering team at your organization. \n\nMy resume is attached for your review. Would be grateful for a quick chat if there are any suitable openings.\n\nBest,\nShailesh Yadav\n+917355603902`,
+  `Hi {first_name},\n\nI’m Shailesh Yadav, an IIT BHU’24 graduate with 2+ years of experience as an SDE at Eduvanz Financing Pvt. Ltd.\n\nI'm exploring SDE opportunities at your organization and would love to connect. My experience has primarily been in scalable systems, full stack, real-time applications, and AI/LLM-powered systems and tools.\n\nExperience: 2+ years\nCurrent Company: Eduvanz Financing\nTech Stack: Java, Python, Nodejs, Flask, Springboot, Reactjs, Postgresql, Cursor, VectorDB, LLMs \n\nI’ve attached my resume for your reference and would be grateful if you could consider me for any suitable SDE openings.\n\nRegards,\nShailesh Yadav\nMobile: +917355603902`,
+  'Random'
+]
+
+const downloadFile = (filename, content, mimeType) => {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const generateDrafts = () => {
+  const baseName = props.filename.replace('.csv', '')
+  const data = selectedFileContent.value
+  
+  if (data.length === 0) {
+    showToast('No records available to generate drafts.', 'error')
+    return
+  }
+
+  const jsonData = []
+  let txtContent = `EMAIL DRAFTS FOR: ${baseName}\n`
+  txtContent += `TEMPLATE SELECTED: ${selectedDraftTemplate.value === 6 ? 'random' : selectedDraftTemplate.value + 1}\n`
+  txtContent += "==================================================\n\n"
+
+  data.forEach((row, index) => {
+    let firstName = String(row.first_name || '').trim()
+    if (!firstName || firstName.toLowerCase() === 'nan' || firstName.toLowerCase() === 'none') {
+      firstName = 'Team'
+    }
+
+    let companyName = String(row.company || '').trim()
+    if (!companyName || companyName.toLowerCase() === 'nan' || companyName.toLowerCase() === 'none') {
+      companyName = 'your company'
+    }
+
+    const emailAddress = String(row.email || 'No Email').trim()
+    const position = String(row.position || 'Unknown Role').trim()
+
+    let tIdx = selectedDraftTemplate.value
+    if (tIdx === 6) {
+      tIdx = index % 6
+    }
+    
+    let template = draftTemplates[tIdx]
+    let formattedBody = template.replace(/{first_name}/g, firstName).replace(/{company}/g, companyName)
+    let subject = "SDE Opportunities | Shailesh Yadav (IIT BHU'24, 2+ YOE)"
+
+    jsonData.push({
+        recipient_id: index + 1,
+        email: emailAddress,
+        role: position,
+        company: companyName,
+        first_name: firstName,
+        subject: subject,
+        body: formattedBody
+    })
+    
+    txtContent += `--- Recipient #${index + 1} ---\n`
+    txtContent += `To:      ${emailAddress}\n`
+    txtContent += `Role:    ${position}\n`
+    txtContent += `Subject: ${subject}\n`
+    txtContent += "------------------------------\n"
+    txtContent += formattedBody + "\n\n"
+    txtContent += "==================================================\n\n"
+  })
+
+  downloadFile(`${baseName}.txt`, txtContent, 'text/plain')
+  downloadFile(`${baseName}.json`, JSON.stringify(jsonData, null, 4), 'application/json')
+  
+  showDraftModal.value = false
+  showToast('Drafts generated and downloaded!')
+}
 
 const availableRoles = ref([])
 const availableTemplates = ref([])

@@ -1,10 +1,16 @@
 {
   "roles": [
-    "Software Development Engineer",
+    "SDE",
     "Full Stack Developer (Backend-Focused)",
     "Backend Developer"
   ],
   "templates": [
+    { "id": "t1", "name": "Template 1: Tightened original" },
+    { "id": "t2", "name": "Template 2: Impact & admiration" },
+    { "id": "t3", "name": "Template 3: Direct & tech-heavy" },
+    { "id": "t4", "name": "Template 4: Tech & Real-time" },
+    { "id": "t5", "name": "Template 5: Conversational" },
+    { "id": "t6", "name": "Template 6: Original Template" },
     { "id": "formal", "name": "Formal (Standard)" },
     { "id": "casual", "name": "Casual & Direct" },
     { "id": "short", "name": "Short & Punchy" }

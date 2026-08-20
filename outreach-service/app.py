@@ -3,6 +3,7 @@ import glob
 import json
 import pandas as pd
 from datetime import datetime
+from pydantic import BaseModel
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -77,6 +78,30 @@ async def get_file_content(filename: str):
         return {"status": "empty", "message": "File exists but has no rows.", "data": []}
     except Exception as e:
         return {"status": "error", "message": f"System error loading CSV: {str(e)}", "data": []}
+
+@app.get("/api/all_contacts")
+async def get_all_contacts():
+    """Return all records across all CSV files in the processing queue"""
+    if not os.path.exists(PROCESSING_QUEUE_DIR):
+        return {"status": "success", "data": []}
+    
+    files = glob.glob(os.path.join(PROCESSING_QUEUE_DIR, "*.csv"))
+    all_data = []
+    
+    for f in files:
+        try:
+            df = pd.read_csv(f)
+            df.fillna('', inplace=True)
+            records = df.to_dict(orient='records')
+            # Add a source_file attribute for tracking
+            for r in records:
+                r['source_file'] = os.path.basename(f)
+            all_data.extend(records)
+        except Exception:
+            continue
+            
+    return {"status": "success", "data": all_data}
+
 
 @app.get("/api/history")
 async def get_history():
@@ -164,15 +189,66 @@ def get_app_config():
         except Exception:
             pass
     return {
-        "roles": ["Software Development Engineer", "Backend Developer"],
+        "roles": ["SDE", "Backend Developer"],
         "templates": [{"id": "formal", "name": "Formal (Standard)"}]
     }
 
 @app.get("/api/preview")
 def preview_email(name: str = "Hiring Manager", company: str = "Example Corp", role: str = "SDE", template: str = "formal"):
     p = get_current_profile()
-    html = generate_email_html(name, company, role=role, template_type=template, sender_name=p.get('name'), sender_exp=p.get('experience'), sender_email=p.get('email'))
-    return {"html": html}
+    sender_name = p.get('name', 'Shailesh Yadav')
+    sender_exp = p.get('experience', '2+ years')
+    subject = f"{sender_name} | Application for {role} Role (IIT BHU , {sender_exp})"
+    html = generate_email_html(name, company, role=role, template_type=template, sender_name=sender_name, sender_exp=sender_exp, sender_email=p.get('email'))
+    return {"subject": subject, "html": html}
+
+class MarkDraftedRequest(BaseModel):
+    email: str
+
+@app.post("/api/files/{filename}/mark_drafted")
+async def mark_drafted(filename: str, request: MarkDraftedRequest):
+    file_path = os.path.join(PROCESSING_QUEUE_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    try:
+        df = pd.read_csv(file_path)
+        if 'is_drafted' not in df.columns:
+            df['is_drafted'] = False
+        if 'is_sent' not in df.columns:
+            df['is_sent'] = False
+            
+        row_idx = df['email'] == request.email
+        df.loc[row_idx, 'is_drafted'] = True
+        df.loc[row_idx, 'is_sent'] = True
+        df.to_csv(file_path, index=False)
+
+        # Update global history to prevent future pipeline runs from emailing this person
+        from src.config import PROCESSED_FILE
+        row_data = df[row_idx].iloc[0].to_dict() if any(row_idx) else {"email": request.email}
+        row_data["is_sent"] = True
+        row_data["verdict_group"] = "Success"
+        row_data["verdict"] = "Sent manually via Gmail Draft"
+        
+        if os.path.exists(PROCESSED_FILE):
+            global_df = pd.read_excel(PROCESSED_FILE)
+        else:
+            global_df = pd.DataFrame()
+            
+        new_record = pd.DataFrame([row_data])
+        if not global_df.empty:
+            global_df = pd.concat([global_df, new_record], ignore_index=True)
+            global_df = global_df.drop_duplicates(subset=['email'], keep='last')
+        else:
+            global_df = new_record
+            
+        os.makedirs(os.path.dirname(PROCESSED_FILE), exist_ok=True)
+        with pd.ExcelWriter(PROCESSED_FILE, engine="openpyxl") as writer:
+            global_df.to_excel(writer, index=False, sheet_name="Processed")
+            
+        return {"status": "success", "message": "Marked as drafted globally and locally"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/upload")
 async def upload_file(request: Request, filename: str):
